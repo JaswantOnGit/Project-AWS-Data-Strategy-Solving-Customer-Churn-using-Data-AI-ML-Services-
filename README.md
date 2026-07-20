@@ -1,59 +1,114 @@
-# AWS Customer Churn — Data, AI & ML Strategy
+# AWS Data Strategy: Solving Customer Churn with Data & AI/ML Services
 
-## Overview
+**A five-phase data pipeline that finds the *real* reason customers cancel — when the structured survey data doesn't say why.**
 
-This repository documents an end-to-end strategy for tackling customer churn using AWS data, analytics, and machine learning services. It covers the business problem, the proposed technical architecture, the phased delivery plan, and the governance model used to track progress and manage risk throughout the engagement.
+Built on AWS (S3, Glue, Athena, Kinesis, Lambda, Comprehend, QuickSight, SageMaker, Redshift ML), delivered with an AI Project Manager's governance lens: charter, RAID log, RACI, quality gates, and cost tracking alongside the technical build.
 
-Customer churn directly affects recurring revenue, and identifying at-risk customers early gives the business a window to intervene with retention offers, support outreach, or product changes. The approach outlined here combines a modern AWS data platform with machine learning to move from raw customer data to actionable churn predictions and dashboards that business stakeholders can act on.
+![Delivery Phases and Governance](architecture/01-delivery-phases-and-governance.png)
 
-## Architecture
+---
 
-The technical architecture ingests customer, billing, usage, and support data into a centralized data lake, transforms it through a series of curated data layers, and exposes it to both business intelligence tools and a machine learning pipeline that scores churn risk. Two diagrams are provided in the `architecture/` folder:
+## 📌 Project Summary
 
-- `01-delivery-phases-and-governance.png` — the phased delivery roadmap and the governance checkpoints attached to each phase.
-- - `02-technical-architecture.png` — the end-to-end AWS technical architecture, from ingestion through to model serving and reporting.
- 
-  - At a high level, the platform is built around the following building blocks:
- 
-  - - Ingestion of batch and streaming customer data sources into a raw data lake.
-    - - A curated, well-governed data layer that standardizes schemas and applies data quality rules.
-      - - A feature store and training pipeline that produces churn-propensity models.
-        - - A serving layer that exposes churn scores to downstream applications, dashboards, and campaign tools.
-          - - Monitoring for both data quality and model drift, feeding back into the governance process.
-           
-            - ## Delivery Phases
-           
-            - The engagement is broken into phases so that value is delivered incrementally and each phase has a clear governance checkpoint before moving to the next:
-           
-            - 1. **Discovery & Business Alignment** — confirm the churn definition, success metrics, data sources, and stakeholders.
-              2. 2. **Data Foundation** — stand up the ingestion pipelines, data lake structure, and data quality controls.
-                 3. 3. **Model Development** — build, validate, and tune the churn prediction models against agreed success criteria.
-                    4. 4. **Deployment & Integration** — deploy the scoring pipeline and integrate outputs with CRM, dashboards, and retention workflows.
-                       5. 5. **Monitoring & Continuous Improvement** — track model performance and data drift, and feed learnings back into retraining cycles.
-                         
-                          6. ## Governance
-                         
-                          7. Progress, risks, and decisions across all phases are tracked in a governance tracker (see `governance/README.md` for details on where that tracker lives and how it is structured). The governance process exists to keep delivery phases accountable, make risks visible early, and give stakeholders a single place to see status across the whole initiative.
-                         
-                          8. ## Repository Structure
-                         
-                          9. ```
-                             aws-customer-churn-repo/
-                             ├── README.md                                     Main write-up: overview, architecture, phases, governance
-                             ├── LICENSE                                       MIT license
-                             ├── .gitignore                                    AWS/Python/secrets patterns
-                             ├── architecture/
-                             │   ├── 01-delivery-phases-and-governance.png    Delivery phases & governance diagram
-                             │   └── 02-technical-architecture.png            Technical architecture diagram
-                             ├── governance/
-                             │   └── README.md                                 Governance tracker structure
-                             ├── lambda/
-                             │   └── README.md                                 Placeholder for Lambda function code
-                             └── screenshots/
-                                 └── README.md                                 Screenshot checklist
-                             ```
+| | |
+|---|---|
+| **Scenario** | Mid-sized telecom (TeleConnect Solutions) facing rising customer churn with no clear signal on root cause |
+| **Core problem** | The structured `cancellation_reason` field is blank for most canceled customers — the "why" isn't in the obvious dataset |
+| **Approach** | Stand up a batch data lake to confirm the trend, then stream + enrich unstructured social sentiment to find the signal the structured data is missing |
+| **Stack** | S3 · Glue · Athena · Kinesis Data Streams · Kinesis Firehose · Lambda · Amazon Comprehend · QuickSight · SageMaker Canvas · Redshift ML |
+| **Est. cost** | $62–123 (AWS Free Tier eligible for Phases 1–2) |
+| **Role** | AI Project Manager — delivery governance, quality gates, cost tracking, stakeholder-facing insight |
 
-                             ## Status
+---
 
-                             This repository is under active development. See the `screenshots/README.md` checklist for outstanding items and the `governance/README.md` for tracker details.
-                             
+## 🏗️ Architecture
+
+![Technical Architecture](architecture/02-technical-architecture.png)
+
+Two ingestion paths converge at a single query layer:
+
+- **Batch path** — structured customer data (`customerid`, `subscribedate`, `canceldate`, `status`, `cancellation_reason`) lands in S3, gets cataloged in Glue, and is queried via Athena.
+- **Streaming path** — live social mentions are captured via Kinesis Data Streams → Firehose → S3, then enriched with sentiment and key-phrase extraction via Lambda + Amazon Comprehend.
+- **Join** — Athena joins the two on `email = userid`, producing a unified `customer_sentiment` view.
+- **Output** — QuickSight for visualization; SageMaker Canvas and Redshift ML for churn-probability scoring.
+
+---
+
+## 📂 Repo Structure
+
+```
+.
+├── README.md
+├── LICENSE
+├── architecture/
+│   ├── 01-delivery-phases-and-governance.png
+│   └── 02-technical-architecture.png
+├── governance/
+│   └── README.md            # links/points to the governance tracker (Charter, RAID, RACI, Quality Gate)
+├── lambda/
+│   └── README.md            # placeholder for the sentiment/key-phrase enrichment function
+└── screenshots/
+    └── README.md            # checklist of screenshots to add once the lab is run end-to-end
+```
+
+---
+
+## 🧭 Delivery Phases
+
+### Phase 1 — Discovery
+Data lake foundation on S3 + Glue Data Catalog + Athena. Validate the churn trend with SQL before committing further budget.
+
+### Phase 2 — Reveal Gap
+QuickSight confirms the churn trend is real, not just customer volume growth — but the cancellation-reason field is a dead end. This is the go/no-go point for investing in streaming enrichment.
+
+### Phase 3 — Build
+Kinesis Data Streams + Firehose capture live social mentions. Lambda + Comprehend score sentiment and extract key phrases in near real-time.
+
+### Phase 4 — Insight
+Join enriched sentiment data back to the customer table in Athena, filtered to negative-sentiment + canceled customers. This is where the root cause surfaces.
+
+### Phase 5 — Scale
+Handoff to SageMaker Canvas (no-code churn feature importance for business stakeholders) and Redshift ML (SQL-based churn-probability scoring on the live customer base).
+
+---
+
+## 🛡️ Governance Artifacts
+
+As the AI Project Manager on this delivery, the technical build was paired with:
+
+- **Project Charter** — problem statement, success metrics, sponsor sign-off
+- **RAID Log** — e.g. PII exposure risk in the raw customer export, mitigated via IAM least-privilege and field-level masking before Athena exposure
+- **RACI Matrix** — Data Engineering owns pipeline build; PM owns quality gates and stakeholder comms; Marketing owns retention-campaign action on the output
+- **Quality Gate Scorecard** — schema validation, null-rate checks, join integrity before promoting Athena views to QuickSight dashboards
+- **Cost Governance Report** — actual AWS spend tracked against the $62–123 estimate, with resource cleanup confirmed at project close
+
+See [`governance/`](governance/) for the tracker.
+
+---
+
+## 💰 Cost Governance
+
+This project is designed to be run and torn down cleanly:
+- Phases 1–2 (S3, Glue, Athena, QuickSight) are Free Tier eligible for light usage.
+- Phases 3–5 (Kinesis, Lambda, Comprehend, SageMaker) bring the estimated total to $62–123 depending on data volume and QuickSight seat cost.
+- All resources are deleted at project close (Kinesis streams, Firehose delivery streams, S3 test data, QuickSight datasets) and the cleanup is logged as part of the cost governance report — not just the build.
+
+---
+
+## 📸 Screenshots
+
+Screenshots from the live run are being added incrementally — see [`screenshots/README.md`](screenshots/README.md) for the full checklist of what's captured and what's pending.
+
+---
+
+## 🙋 About
+
+Delivered and documented by **Jaswant Singh, PMP®** — Calgary-based Project Manager transitioning into AI Project Manager / AI Implementation PM roles, with hands-on AWS and Azure AI/ML delivery experience.
+
+- GitHub: [github.com/JaswantOnGit](https://github.com/JaswantOnGit)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
